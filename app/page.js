@@ -1,6 +1,6 @@
 'use client';
 
-import { Stack, Box, TextField, Button } from "@mui/material"; // Changed @mui/system to @mui/material for TextField and Button
+import { Stack, Box, TextField, Button } from "@mui/material";
 import { useState } from "react";
 
 export default function Home() {
@@ -12,8 +12,11 @@ export default function Home() {
   ]);
 
   const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false); // Added loading state
 
   const sendMessage = async () => {
+    if (!message.trim()) return; // Validate input
+
     setMessages((prevMessages) => [
       ...prevMessages,
       { role: 'user', content: message },
@@ -21,42 +24,52 @@ export default function Home() {
     ]);
 
     setMessage('');
+    setLoading(true); // Set loading state
 
-    const response = await fetch('/api/chat', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify([...messages, { role: 'user', content: message }]),
-    });
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-
-    let result = '';
-
-    const processText = async ({ done, value }) => {
-      if (done) return result;
-
-      const text = decoder.decode(value || new Uint8Array(), { stream: true });
-      result += text;
-
-      setMessages((prevMessages) => {
-        const lastMessage = prevMessages[prevMessages.length - 1];
-        const otherMessages = prevMessages.slice(0, prevMessages.length - 1);
-        return [
-          ...otherMessages,
-          {
-            ...lastMessage,
-            content: lastMessage.content + text,
-          },
-        ];
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify([...messages, { role: 'user', content: message }]),
       });
 
-      return reader.read().then(processText);
-    };
+      if (!response.ok) throw new Error('Network response was not ok');
 
-    await reader.read().then(processText);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+
+      let result = '';
+
+      const processText = async ({ done, value }) => {
+        if (done) return result;
+
+        const text = decoder.decode(value || new Uint8Array(), { stream: true });
+        result += text;
+
+        setMessages((prevMessages) => {
+          const lastMessage = prevMessages[prevMessages.length - 1];
+          const otherMessages = prevMessages.slice(0, prevMessages.length - 1);
+          return [
+            ...otherMessages,
+            {
+              ...lastMessage,
+              content: lastMessage.content + text,
+            },
+          ];
+        });
+
+        return reader.read().then(processText);
+      };
+
+      await reader.read().then(processText);
+    } catch (error) {
+      console.error('Error:', error);
+      // Handle error (e.g., show error message)
+    } finally {
+      setLoading(false); // Reset loading state
+    }
   };
 
   return (
@@ -110,9 +123,14 @@ export default function Home() {
             fullWidth
             value={message}
             onChange={(e) => setMessage(e.target.value)}
+            disabled={loading} // Disable input while loading
           />
-          <Button variant="contained" onClick={sendMessage}>
-            Send
+          <Button 
+            variant="contained" 
+            onClick={sendMessage} 
+            disabled={loading} // Disable button while loading
+          >
+            {loading ? 'Sending...' : 'Send'}
           </Button>
         </Stack>
       </Stack>

@@ -1,37 +1,35 @@
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
+import axios from "axios";
 
 const systemPrompt = "You are an AI-powered customer support assistant for Sincerelysza, a dynamic marketing agency specializing in enhancing brand presence through organic and engaging video and photo content. Your role is to assist clients by answering inquiries about Sincerelysza's services, providing information on content creation strategies, scheduling consultations, and offering personalized recommendations to help brands boost their visibility. Maintain a friendly, professional tone, and ensure clients feel supported and excited about collaborating with Sincerelysza.";
 
 export async function POST(req) {
-    const openai = new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY,
-    });
-
+    const apiKey = process.env.OPENROUTER_API_KEY;
     const data = await req.json();
 
-    const completion = await openai.chat.completions.create({
-        model: 'gpt-4',
-        messages: [
-            {
-                role: 'system',
-                content: systemPrompt,
+    const response = await axios.post(
+        'https://api.openrouter.ai/models/meta-llama/llama-3.1-8b-instruct:free/activity',
+        {
+            prompt: systemPrompt + "\n" + data.messages.map(msg => msg.content).join("\n"), // Combine system prompt and messages
+            max_tokens: 100,
+            temperature: 0.7,
+        },
+        {
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json',
             },
-            ...data.messages,  // Assuming data.messages is an array of user and assistant messages
-        ],
-        stream: true,
-    });
+        }
+    );
 
     const stream = new ReadableStream({
         async start(controller) {
             const encoder = new TextEncoder();
             try {
-                for await (const chunk of completion) {
-                    const content = chunk.choices[0]?.delta?.content;
-                    if (content) {
-                        const text = encoder.encode(content);
-                        controller.enqueue(text);
-                    }
+                const content = response.data.choices[0]?.text;
+                if (content) {
+                    const text = encoder.encode(content);
+                    controller.enqueue(text);
                 }
             } catch (err) {
                 controller.error(err);
