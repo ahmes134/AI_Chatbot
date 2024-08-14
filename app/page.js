@@ -1,56 +1,65 @@
-'use client';
+"use client";
 
-import { Stack, Box, TextField, Button } from "@mui/material"; // Changed @mui/system to @mui/material for TextField and Button
+import { Stack, Box, TextField, Button } from "@mui/material";
 import { useState } from "react";
 
 export default function Home() {
   const [messages, setMessages] = useState([
     {
-      role: 'assistant',
+      role: "assistant",
       content: `Hi, I'm Baymax, how can I assist you today?`,
-    }
+    },
   ]);
 
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState("");
 
   const sendMessage = async () => {
-    setMessage(''); //Clear the input field
+    if (!message.trim()) return; // Do not send empty messages
+
     setMessages((messages) => [
       ...messages,
-      { role: 'user', content: message }, // Add user's msg to the chat
-      { role: 'assistant', content: '' }, // Add a placeholder for the assistant's message 
-    ])
+      { role: "user", content: message },
+      { role: "assistant", content: "" },
+    ]);
 
-    // Send message to the server
-    const response = fetch('/api/chat', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify([...messages, { role: 'user', content: message }]),
-    }).then(async (res) => {
-    const reader = res.body.getReader()
-    const decoder = new TextDecoder()
+    setMessage(""); // Clear the input field
 
-    let result = ''
-    // Function to process the text from the response
-    return reader.read().then(function processText({done, value}) {
-      if (done) {
-        return result
-      }
-      const text = decoder.decode(value || new Uint8Array(), { stream: true })
-      setMessages((messages) => {
-        let lastMessage = messages[messages.length - 1]
-        let otherMessages = messages.slice(0, messages.length - 1)
-        return [
-          ...otherMessages,
-          {...lastMessage,content: lastMessage.content + text },
-        ]
-      })
-      return reader.read().then(processText) //Continue reading the next chunk
-    })
-  })
-}
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messages: [...messages, { role: "user", content: message }],
+        }),
+      });
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+
+      let result = "";
+      reader.read().then(function processText({ done, value }) {
+        if (done) {
+          return result;
+        }
+        const text = decoder.decode(value || new Uint8Array(), {
+          stream: true,
+        });
+        setMessages((messages) => {
+          let lastMessage = messages[messages.length - 1];
+          let otherMessages = messages.slice(0, messages.length - 1);
+          return [
+            ...otherMessages,
+            { ...lastMessage, content: lastMessage.content + text },
+          ];
+        });
+        return reader.read().then(processText); // Continue reading the next chunk
+      });
+    } catch (error) {
+      console.error("Error sending message:", error);
+    }
+  };
 
   return (
     <Box
@@ -63,8 +72,10 @@ export default function Home() {
     >
       <Stack
         direction="column"
-        width="600px"
-        height="700px"
+        width="90%"
+        maxWidth="600px"
+        height="90%"
+        maxHeight="700px"
         border="1px solid black"
         p={2}
         spacing={3}
@@ -74,23 +85,25 @@ export default function Home() {
           spacing={2}
           flexGrow={1}
           overflow="auto"
-          maxHeight="100%"
+          sx={{ maxHeight: "calc(100% - 60px)" }}
         >
           {messages.map((message, index) => (
             <Box
               key={index}
               display="flex"
               justifyContent={
-                message.role === 'assistant' ? 'flex-start' : 'flex-end'
+                message.role === "assistant" ? "flex-start" : "flex-end"
               }
             >
               <Box
                 bgcolor={
-                  message.role === 'assistant' ? 'primary.main' : 'secondary.main'
+                  message.role === "assistant"
+                    ? "primary.main"
+                    : "secondary.main"
                 }
                 color="white"
                 borderRadius={16}
-                p={3}
+                p={2}
               >
                 {message.content}
               </Box>
@@ -103,6 +116,12 @@ export default function Home() {
             fullWidth
             value={message}
             onChange={(e) => setMessage(e.target.value)}
+            onKeyPress={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+              }
+            }}
           />
           <Button variant="contained" onClick={sendMessage}>
             Send
