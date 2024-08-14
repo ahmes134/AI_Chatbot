@@ -1,6 +1,6 @@
 'use client';
 
-import { Stack, Box, TextField, Button } from "@mui/material";
+import { Stack, Box, TextField, Button } from "@mui/material"; // Changed @mui/system to @mui/material for TextField and Button
 import { useState } from "react";
 
 export default function Home() {
@@ -12,65 +12,45 @@ export default function Home() {
   ]);
 
   const [message, setMessage] = useState('');
-  const [loading, setLoading] = useState(false); // Added loading state
 
   const sendMessage = async () => {
-    if (!message.trim()) return; // Validate input
+    setMessage(''); //Clear the input field
+    setMessages((messages) => [
+      ...messages,
+      { role: 'user', content: message }, // Add user's msg to the chat
+      { role: 'assistant', content: '' }, // Add a placeholder for the assistant's message 
+    ])
 
-    setMessages((prevMessages) => [
-      ...prevMessages,
-      { role: 'user', content: message },
-      { role: 'assistant', content: '' },
-    ]);
+    // Send message to the server
+    const response = fetch('/api/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify([...messages, { role: 'user', content: message }]),
+    }).then(async (res) => {
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
 
-    setMessage('');
-    setLoading(true); // Set loading state
-
-    try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify([...messages, { role: 'user', content: message }]),
-      });
-
-      if (!response.ok) throw new Error('Network response was not ok');
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-
-      let result = '';
-
-      const processText = async ({ done, value }) => {
-        if (done) return result;
-
-        const text = decoder.decode(value || new Uint8Array(), { stream: true });
-        result += text;
-
-        setMessages((prevMessages) => {
-          const lastMessage = prevMessages[prevMessages.length - 1];
-          const otherMessages = prevMessages.slice(0, prevMessages.length - 1);
-          return [
-            ...otherMessages,
-            {
-              ...lastMessage,
-              content: lastMessage.content + text,
-            },
-          ];
-        });
-
-        return reader.read().then(processText);
-      };
-
-      await reader.read().then(processText);
-    } catch (error) {
-      console.error('Error:', error);
-      // Handle error (e.g., show error message)
-    } finally {
-      setLoading(false); // Reset loading state
-    }
-  };
+    let result = ''
+    // Function to process the text from the response
+    return reader.read().then(function processText({done, value}) {
+      if (done) {
+        return result
+      }
+      const text = decoder.decode(value || new Uint8Array(), { stream: true })
+      setMessages((messages) => {
+        let lastMessage = messages[messages.length - 1]
+        let otherMessages = messages.slice(0, messages.length - 1)
+        return [
+          ...otherMessages,
+          {...lastMessage,content: lastMessage.content + text },
+        ]
+      })
+      return reader.read().then(processText) //Continue reading the next chunk
+    })
+  })
+}
 
   return (
     <Box
@@ -123,14 +103,9 @@ export default function Home() {
             fullWidth
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            disabled={loading} // Disable input while loading
           />
-          <Button 
-            variant="contained" 
-            onClick={sendMessage} 
-            disabled={loading} // Disable button while loading
-          >
-            {loading ? 'Sending...' : 'Send'}
+          <Button variant="contained" onClick={sendMessage}>
+            Send
           </Button>
         </Stack>
       </Stack>
