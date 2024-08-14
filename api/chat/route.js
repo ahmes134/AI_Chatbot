@@ -9,7 +9,7 @@ export async function POST(req) {
     }
     const openai = new OpenAI({
         baseURL:"https://openrouter.ai/api/v1",
-        apiKey: process.env.OPENAI_API_KEY,
+        apiKey: process.env.OPENROUTER_API_KEY,
     })
     const data = await req.json();
 
@@ -42,13 +42,6 @@ export async function POST(req) {
                 controller.close();
             }
         },
-    });
-
-    return new NextResponse(stream, {
-        headers: {
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
-        },
-    });
+    })
+    return new NextResponse(stream)
 }
